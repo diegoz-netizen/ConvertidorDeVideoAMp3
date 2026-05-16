@@ -47,17 +47,19 @@ def download():
     video_url = request.form.get('url')
     
     ydl_opts = {
-        'format': 'bestaudio/best',
-        'outtmpl': f'{DOWNLOAD_FOLDER}/%(title)s.%(ext)s',
-        'cookiefile': 'cookies.txt',
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }],
-        'prefer_ffmpeg': True,
-        'keepvideo': False
-    }
+            'format': 'ba/b',  # <--- Usamos abreviaciones nativas (bestaudio/best)
+            'outtmpl': f'{DOWNLOAD_FOLDER}/%(title)s.%(ext)s',
+            'cookiefile': 'cookies.txt',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+            'prefer_ffmpeg': True,
+            'keepvideo': False,
+            'extract_flat': False,  # <--- Asegura que procese el video individual completo
+            'ignoreerrors': True,   # <--- Evita que se caiga si un formato secundario falla
+        }
     
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
