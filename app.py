@@ -46,24 +46,22 @@ def index():
 def download():
     video_url = request.form.get('url')
     
+    # Parche definitivo para evitar el bug interno de 'NoneType object has no attribute setdefault'
+    os.environ['HTTP_PROXY'] = ''
+    os.environ['HTTPS_PROXY'] = ''
+    
     ydl_opts = {
-            'format': 'ba/b',
-            'outtmpl': f'{DOWNLOAD_FOLDER}/%(title)s.%(ext)s',
-            'no_cookies': True,  # <--- ESTO OBLIGA A YT-DLP A IGNORAR CUALQUIER ARCHIVO DE COOKIES MALO
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
-            },
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
-            'prefer_ffmpeg': True,
-            'keepvideo': False,
-            'ignoreerrors': True,
-        }
+        'format': 'ba/b',  # Descarga el mejor audio disponible de forma flexible
+        'outtmpl': f'{DOWNLOAD_FOLDER}/%(title)s.%(ext)s',
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }],
+        'prefer_ffmpeg': True,
+        'keepvideo': False,
+        'ignoreerrors': True
+    }
     
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
