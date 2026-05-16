@@ -1,6 +1,8 @@
 from flask import Flask, request, send_file
 import yt_dlp
 import os
+import static_ffmpeg
+static_ffmpeg.add_paths()
 
 app = Flask(__name__)
 
