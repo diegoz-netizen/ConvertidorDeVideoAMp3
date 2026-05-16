@@ -4,5 +4,3 @@ services:
     runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
-    buildpacks:
-      - url: https://github.com/heroku/heroku-buildpack-ffmpeg-latest.git
