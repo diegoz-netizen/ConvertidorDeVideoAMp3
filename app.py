@@ -2,12 +2,24 @@ from flask import Flask, request, send_file
 import yt_dlp
 import os
 import static_ffmpeg
+import tempfile
+import platform
+import glob
+import shutil
 static_ffmpeg.add_paths()
 
 app = Flask(__name__)
 
-# Render solo permite escribir en la carpeta /tmp en su plan gratuito
-DOWNLOAD_FOLDER = '/tmp' 
+# Detectar OS y usar carpeta apropiada
+if platform.system() == 'Windows':
+    # En Windows, usar AppData temporal
+    DOWNLOAD_FOLDER = os.path.join(tempfile.gettempdir(), 'mp3_converter')
+else:
+    # En Linux/Render, usar /tmp
+    DOWNLOAD_FOLDER = '/tmp/mp3_converter'
+
+# Crear carpeta si no existe
+os.makedirs(DOWNLOAD_FOLDER, exist_ok=True) 
 
 @app.route('/')
 def index():
@@ -46,33 +58,65 @@ def index():
 def download():
     video_url = request.form.get('url')
     
-    # Parche definitivo para evitar el bug interno de 'NoneType object has no attribute setdefault'
+    if not video_url:
+        return "Error: No se proporcionó URL", 400
+    
+    # Parche para evitar el bug de proxies de yt-dlp
     os.environ['HTTP_PROXY'] = ''
     os.environ['HTTPS_PROXY'] = ''
     
-    ydl_opts = {
-        'format': 'ba/b',  # Descarga el mejor audio disponible de forma flexible
-        'outtmpl': f'{DOWNLOAD_FOLDER}/%(title)s.%(ext)s',
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }],
-        'prefer_ffmpeg': True,
-        'keepvideo': False,
-        'ignoreerrors': True
-    }
+    # Crear carpeta única para esta descarga
+    download_session = os.path.join(DOWNLOAD_FOLDER, f"session_{os.getpid()}")
+    os.makedirs(download_session, exist_ok=True)
+    
+    mp3_file = None
     
     try:
+        ydl_opts = {
+            'format': 'ba/b',
+            'outtmpl': os.path.join(download_session, '%(title)s.%(ext)s'),
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+            'prefer_ffmpeg': True,
+            'keepvideo': False,
+            'ignoreerrors': False,
+            'quiet': False,
+            'no_warnings': False,
+        }
+        
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(video_url, download=True)
-            filename = ydl.prepare_filename(info)
-            mp3_filename = os.path.splitext(filename)[0] + '.mp3'
+            base_filename = ydl.prepare_filename(info)
+            
+            # Buscar archivo MP3 generado
+            mp3_files = glob.glob(os.path.join(download_session, '*.mp3'))
+            if not mp3_files:
+                raise Exception("No se pudo generar el archivo MP3")
+            
+            mp3_file = mp3_files[0]
         
-        return send_file(mp3_filename, as_attachment=True)
+        # Enviar archivo
+        return send_file(
+            mp3_file,
+            as_attachment=True,
+            download_name=os.path.basename(mp3_file),
+            mimetype='audio/mpeg'
+        )
         
     except Exception as e:
-        return f"Error al procesar el enlace: {str(e)}", 400
+        error_msg = f"Error al procesar el enlace: {str(e)}"
+        return error_msg, 400
+    
+    finally:
+        # Limpiar archivos temporales
+        try:
+            if os.path.exists(download_session):
+                shutil.rmtree(download_session)
+        except Exception as cleanup_error:
+            print(f"Error al limpiar archivos: {cleanup_error}")
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
